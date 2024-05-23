@@ -1,3 +1,4 @@
+// userController.js
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/Users");
@@ -35,7 +36,7 @@ exports.loginUser = async (req, res) => {
       const token = jwt.sign({ id: user._id }, "your_jwt_secret", {
         expiresIn: "1d",
       });
-      res.json({ message: "User logged in", token });
+      res.json({ message: "User logged in", token, username: user.username }); // Include username in the response
     } else {
       res.status(400).json({ message: "Invalid credentials" });
     }
