@@ -1,25 +1,29 @@
-// userController.js
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/Users");
+const Coach = require("../models/Coaches");
 
-// Updated registration function
+// Register User
 exports.registerUser = async (req, res) => {
   const { username, email, password, role } = req.body;
 
-  // Validate the role
   if (!["coach", "athlete"].includes(role)) {
     return res.status(400).json({ error: "Role not specified." });
   }
 
   try {
-    const newUser = new User({ username, email, password, role });
+    let newUser;
+    if (role === "coach") {
+      newUser = new Coach({ username, email, password, role });
+    } else {
+      newUser = new User({ username, email, password, role });
+    }
+
     await newUser.save();
     res.status(201).json({ message: "User registered successfully" });
   } catch (error) {
     console.error("Error during registration:", error);
     if (error.code === 11000) {
-      // MongoDB duplicate key error
       res.status(400).json({ error: "Username or email already exists." });
     } else {
       res.status(500).json({ error: "Server error during user registration." });
@@ -27,16 +31,24 @@ exports.registerUser = async (req, res) => {
   }
 };
 
-// Login function that authenticates the user and returns a JWT token
+// Login User
 exports.loginUser = async (req, res) => {
   const { email, password } = req.body;
   try {
-    const user = await User.findOne({ email });
+    // Check both collections for the user
+    const user =
+      (await User.findOne({ email })) || (await Coach.findOne({ email }));
+
     if (user && (await bcrypt.compare(password, user.password))) {
       const token = jwt.sign({ id: user._id }, "your_jwt_secret", {
         expiresIn: "1d",
       });
-      res.json({ message: "User logged in", token, username: user.username }); // Include username in the response
+      res.json({
+        message: "User logged in",
+        token,
+        username: user.username,
+        role: user.role,
+      });
     } else {
       res.status(400).json({ message: "Invalid credentials" });
     }
@@ -45,16 +57,15 @@ exports.loginUser = async (req, res) => {
   }
 };
 
-// Function to update user settings
+// Update User Settings
 exports.updateUserSettings = async (req, res) => {
-  const userId = req.user.id; // Assuming `req.user` is populated from JWT middleware
+  const userId = req.user.id;
   try {
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).send("User not found");
     }
 
-    // Update fields if they are provided
     if (req.body.password)
       user.password = await bcrypt.hash(req.body.password, 10);
     if (req.body.language) user.language = req.body.language;
@@ -67,9 +78,9 @@ exports.updateUserSettings = async (req, res) => {
   }
 };
 
-// Function to get user settings
+// Get User Settings
 exports.getUserSettings = async (req, res) => {
-  const userId = req.user.id; // Assuming `req.user` is populated from JWT middleware
+  const userId = req.user.id;
   try {
     const user = await User.findById(userId).select("language weightUnit");
     if (!user) {
